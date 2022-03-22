@@ -1,9 +1,10 @@
 from src.tools.logger import Logger
-from src.tools.utils import bs4_soup, get_application_data
-from src.tools.vpn import init_driver, get_page_data
+from src.tools.utils import bs4_soup
+from src.tools.opera_vpn import init_driver, get_page_data
 import time
+import re
 from src.tools.utils import time_waiting
-import pymongo
+
 
 driver = None
 
@@ -20,8 +21,8 @@ def apply_scraping(urls):
         while try_again:
             time_waiting()
             # We can set the part of the page text to detect in other to consider the page open is 403
-            response = get_page_data(driver, url, "Access Denied")
-            if response is not None:
+            response = get_page_data(driver=driver, url=url, error_403_text="Access Denied", new_tab=True)
+            if response is not None and bs4_soup(response).find_all('div'):
                 try_again = False
             else:
                 LOGGER.info("Try again to open the page..")
@@ -32,12 +33,14 @@ def apply_scraping(urls):
                 try_again = True
 
         soup_page = bs4_soup(response)
-        LOGGER.info(f"Extract data from {url}")
-        data = get_application_data(soup_page, key='@type', value='ItemList')
-        LOGGER.info(f"storing data from {url}: {len(data)} data found!")
-        # storing function
-        mongodb_instance = pymongo.MongoClient("")
-        mongodb_db = mongodb_instance['test_db']
-        mongodb_db['store_data'].insert_many(data)
+        articles = soup_page.find_all('article', {'class': '_1MR-U _2bDr_'})
+        print(articles)
+        LOGGER.info(f"Number of articles found: {len(articles)}")
+        for article in articles:
+            #if article.find('span', {'class': '_1uDOY'}):
+            print("Article url: {}".format(article.find('a', {'class': 'Wz9wg'}).attrs['href']))
+            print("Article number reviews: {}".format(int(re.findall(
+                r'[0-9]+', article.find('span', {'class': 'wQ2tY'}).text)[0])))
+            print("-----------------------------------------")
 
     LOGGER.info("End scraping..")
